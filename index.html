@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MailCheck — SMTP Email Verifier</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f2ed;--bg2:#eceae3;--surface:#fff;--surface2:#f8f6f1;
+  --border:#dedad0;--border2:#c9c3b5;
+  --ink:#1a1714;--ink2:#5a5348;--ink3:#9c9287;
+  --accent:#1d4ed8;--accent-bg:#eff6ff;--accent-mid:#bfdbfe;
+  --green:#15803d;--green-bg:#f0fdf4;--green-b:#bbf7d0;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-b:#fecaca;
+  --orange:#c2410c;--orange-bg:#fff7ed;--orange-b:#fed7aa;
+  --yellow:#b45309;--yellow-bg:#fffbeb;--yellow-b:#fde68a;
+  --purple:#6d28d9;--purple-bg:#f5f3ff;--purple-b:#ddd6fe;
+  --font:'Bricolage Grotesque',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000' fill-opacity='0.016'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:44px 24px 80px}
+
+/* topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:44px;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:36px;height:36px;background:var(--ink);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-name{font-weight:800;font-size:17px;letter-spacing:-.03em}
+.logo-name span{color:var(--accent)}
+.server-status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#d1d5db;flex-shrink:0;transition:background .3s}
+.status-dot.online{background:#34d399;box-shadow:0 0 0 2px rgba(52,211,153,.2)}
+.status-dot.offline{background:#f87171;box-shadow:0 0 0 2px rgba(248,113,113,.2)}
+.status-dot.checking{background:#fbbf24;animation:blink 1s ease-in-out infinite}
+.status-text{color:var(--ink2)}
+.status-text b{color:var(--ink)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* hero */
+.hero{margin-bottom:36px}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+h1{font-size:clamp(30px,5vw,52px);font-weight:800;letter-spacing:-.04em;line-height:1;margin-bottom:14px}
+.hero-sub{font-size:15px;color:var(--ink2);line-height:1.6;max-width:540px}
+
+/* method pills */
+.method-bar{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.method-pill{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--ink2)}
+.method-pill .dot{width:6px;height:6px;border-radius:50%}
+.method-pill.smtp .dot{background:#34d399}
+.method-pill.smtp{border-color:var(--green-b);background:var(--green-bg);color:var(--green)}
+.method-pill.mx .dot{background:var(--accent)}
+.method-pill.mx{border-color:var(--accent-mid);background:var(--accent-bg);color:var(--accent)}
+.method-pill.syntax .dot{background:#a78bfa}
+.method-pill.syntax{border-color:var(--purple-b);background:var(--purple-bg);color:var(--purple)}
+
+/* tabs */
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:20px;width:fit-content}
+.tab{padding:8px 20px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--ink3);border:none;background:none;display:flex;align-items:center;gap:7px;font-family:var(--font)}
+.tab.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.tab:hover:not(.active){color:var(--ink2)}
+.new-badge{font-family:var(--mono);font-size:9px;background:var(--accent);color:#fff;padding:1px 5px;border-radius:3px;margin-left:2px}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.card-label{font-family:var(--mono);font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:7px}
+.card-label .dot{width:7px;height:7px;border-radius:50%;background:#34d399;animation:blink 2.5s ease-in-out infinite}
+.card-hint{font-family:var(--mono);font-size:10px;color:var(--ink3);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:3px 8px}
+.card-body{padding:20px 22px}
+
+/* textarea */
+textarea{width:100%;min-height:150px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:2;padding:14px 16px;resize:vertical;outline:none;transition:border-color .15s,box-shadow .15s}
+textarea::placeholder{color:var(--ink3);font-style:italic}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+
+/* dropzone */
+.dropzone{border:2px dashed var(--border2);border-radius:14px;background:var(--bg);padding:40px 32px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.dropzone::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(29,78,216,.025));pointer-events:none}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-bg)}
+.dropzone.over{transform:scale(1.005)}
+.drop-icon{width:52px;height:52px;margin:0 auto 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:all .2s}
+.dropzone:hover .drop-icon,.dropzone.over .drop-icon{border-color:var(--accent);background:var(--accent-bg)}
+.drop-title{font-weight:700;font-size:16px;letter-spacing:-.02em;margin-bottom:5px}
+.drop-sub{font-size:13px;color:var(--ink2);margin-bottom:16px;line-height:1.5}
+.fmt-pills{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px}
+.fmt-pill{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);font-weight:500}
+.fmt-pill.xl{border-color:var(--green-b);background:var(--green-bg);color:var(--green)}
+.fmt-pill.csv{border-color:var(--accent-mid);background:var(--accent-bg);color:var(--accent)}
+.btn-browse{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:9px 20px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;letter-spacing:-.01em;transition:all .15s}
+.btn-browse:hover{background:#2d2926;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+#fileInput{display:none}
+
+/* file loaded */
+.file-loaded{display:none;border:1.5px solid var(--green-b);border-radius:14px;background:var(--green-bg);padding:14px 18px}
+.file-loaded.show{display:flex;align-items:center;gap:12px}
+.fl-icon{width:38px;height:38px;flex-shrink:0;background:#fff;border:1px solid var(--green-b);border-radius:9px;display:flex;align-items:center;justify-content:center}
+.fl-info{flex:1;min-width:0}
+.fl-name{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--ink);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl-meta{font-family:var(--mono);font-size:11px;color:var(--green)}
+
+/* mapper */
+.mapper{display:none;margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.mapper.show{display:block}
+.mapper-title{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.mapper-title::before{content:'↳';color:var(--accent)}
+.map-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px}
+.map-lbl{font-size:12px;color:var(--ink2)}
+.map-arr{color:var(--ink3);font-family:var(--mono);font-size:13px}
+select{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--ink);font-family:var(--mono);font-size:12px;padding:7px 28px 7px 10px;outline:none;cursor:pointer;transition:border-color .15s;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239c9287' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+select:focus{border-color:var(--accent)}
+.preview-strip{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.pchip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg2);border:1px solid var(--border);color:var(--ink2)}
+.pchip.ok{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+
+/* card footer */
+.card-foot{display:flex;align-items:center;justify-content:space-between;padding:13px 22px;flex-wrap:wrap;gap:10px;border-top:1px solid var(--border);background:var(--surface2)}
+.counters{display:flex;gap:8px;flex-wrap:wrap}
+.pill{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);color:var(--ink2);background:var(--surface);display:flex;align-items:center;gap:5px}
+.pill-n{font-weight:600;color:var(--ink)}
+.btn-run{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff;border:none;border-radius:10px;padding:10px 24px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:-.01em;transition:all .15s}
+.btn-run:hover{background:#2d2926;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.btn-run:active{transform:translateY(0)}
+.btn-run:disabled{opacity:.42;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-sm{display:inline-flex;align-items:center;gap:5px;background:var(--surface);color:var(--ink2);border:1px solid var(--border2);border-radius:7px;padding:6px 12px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .12s}
+.btn-sm:hover{color:var(--ink);border-color:var(--ink);background:var(--bg2)}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* alerts */
+.alert{display:none;margin-top:13px;padding:11px 14px;border-radius:9px;font-family:var(--mono);font-size:12px;line-height:1.5}
+.alert.err{display:block;background:var(--red-bg);border:1px solid var(--red-b);color:var(--red)}
+.alert.warn{display:block;background:var(--yellow-bg);border:1px solid var(--yellow-b);color:var(--yellow)}
+.alert.info{display:block;background:var(--accent-bg);border:1px solid var(--accent-mid);color:var(--accent)}
+
+/* offline banner */
+.offline-banner{display:none;background:var(--red-bg);border:1px solid var(--red-b);border-radius:14px;padding:20px 22px;margin-bottom:20px;font-size:13px;color:var(--red)}
+.offline-banner.show{display:block}
+.offline-banner-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.offline-banner-title{font-weight:700;font-size:14px;color:var(--red)}
+.offline-banner-sub{font-size:12px;color:#dc2626;margin-top:2px;line-height:1.4}
+.setup-steps{display:flex;flex-direction:column;gap:10px}
+.setup-step{background:rgba(185,28,28,.05);border:1px solid rgba(185,28,28,.15);border-radius:10px;padding:12px 14px}
+.step-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.step-num{width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-family:var(--mono);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-title{font-size:13px;font-weight:600;color:var(--red)}
+.step-desc{font-size:11.5px;color:#dc2626;margin-bottom:8px;line-height:1.5;padding-left:32px}
+.step-cmd{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(185,28,28,.08);border:1px solid rgba(185,28,28,.18);border-radius:7px;padding:9px 12px;margin-left:32px}
+.step-cmd code{font-family:var(--mono);font-size:12px;color:#991b1b;flex:1;user-select:all}
+.copy-btn{display:inline-flex;align-items:center;gap:4px;background:transparent;border:1px solid rgba(185,28,28,.3);border-radius:5px;padding:3px 8px;font-family:var(--mono);font-size:10px;color:#b91c1c;cursor:pointer;transition:all .15s;flex-shrink:0;white-space:nowrap}
+.copy-btn:hover{background:rgba(185,28,28,.1);border-color:var(--red)}
+.copy-btn.copied{color:var(--green);border-color:var(--green-b);background:var(--green-bg)}
+.step-note{font-size:11px;color:#dc2626;margin-top:6px;padding-left:32px;font-style:italic;opacity:.8}
+.banner-tabs{display:flex;gap:6px;margin-bottom:16px}
+.banner-tab{flex:1;padding:9px 10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid rgba(185,28,28,.25);background:transparent;color:#b91c1c;font-family:var(--font);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.banner-tab.active{background:var(--red);color:#fff;border-color:var(--red)}
+.banner-tab:hover:not(.active){background:rgba(185,28,28,.08)}
+.banner-panel{display:none}.banner-panel.active{display:block}
+.render-step{background:rgba(185,28,28,.05);border:1px solid rgba(185,28,28,.15);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.render-step:last-child{margin-bottom:0}
+
+/* progress */
+.prog-wrap{display:none;margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow)}
+.prog-wrap.show{display:block}
+.prog-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.prog-lbl{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.prog-pct{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent)}
+.prog-track{height:6px;background:var(--bg2);border-radius:10px;overflow:hidden;margin-bottom:8px}
+.prog-fill{height:100%;background:var(--accent);border-radius:10px;transition:width .35s ease;width:0%}
+.prog-sub{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.prog-stats{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.prog-stat{font-family:var(--mono);font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:5px}
+.prog-stat .dot{width:6px;height:6px;border-radius:50%}
+
+/* results */
+.results-section{margin-top:28px}
+.results-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.results-lbl{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid}
+.chip.valid{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.chip.likely{background:#f0fdf4;border-color:#86efac;color:#166534}
+.chip.risky{background:var(--yellow-bg);border-color:var(--yellow-b);color:var(--yellow)}
+.chip.invalid{background:var(--red-bg);border-color:var(--red-b);color:var(--red)}
+.chip.consumer{background:var(--purple-bg);border-color:var(--purple-b);color:var(--purple)}
+.chip.unknown{background:var(--orange-bg);border-color:var(--orange-b);color:var(--orange)}
+.chip.total{background:var(--accent-bg);border-color:var(--accent-mid);color:var(--accent)}
+.chip-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* filter */
+.filter-row{display:flex;gap:8px;margin-bottom:13px;flex-wrap:wrap;align-items:center}
+.fbtn{font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);cursor:pointer;transition:all .12s}
+.fbtn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fbtn:hover:not(.active){border-color:var(--border2);color:var(--ink)}
+.search-wrap{margin-left:auto;position:relative}
+.search-inp{font-family:var(--mono);font-size:12px;padding:6px 10px 6px 28px;border:1.5px solid var(--border);border-radius:7px;background:var(--surface);color:var(--ink);outline:none;width:200px;transition:border-color .15s}
+.search-inp:focus{border-color:var(--accent)}
+.search-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ink3);pointer-events:none}
+
+/* table */
+.tbl-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.tbl-head{display:grid;grid-template-columns:1.8fr 90px 100px 1fr 1.4fr;padding:10px 20px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);font-weight:500}
+.tbl-body{max-height:580px;overflow-y:auto}
+.tbl-body::-webkit-scrollbar{width:5px}
+.tbl-body::-webkit-scrollbar-track{background:var(--bg2)}
+.tbl-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.tbl-row{display:grid;grid-template-columns:1.8fr 90px 100px 1fr 1.4fr;padding:12px 20px;border-bottom:1px solid var(--border);align-items:start;transition:background .1s;animation:rowIn .2s ease both;cursor:default}
+.tbl-row:last-child{border-bottom:none}
+.tbl-row:hover{background:var(--surface2)}
+@keyframes rowIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.c-email{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--ink);word-break:break-all;padding-right:10px}
+.c-conf{padding-right:10px}
+.conf-bar-wrap{display:flex;align-items:center;gap:6px}
+.conf-bar{height:4px;border-radius:3px;background:var(--bg2);width:52px;overflow:hidden;flex-shrink:0}
+.conf-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.conf-pct{font-family:var(--mono);font-size:10px;color:var(--ink3);white-space:nowrap}
+.c-status{padding-right:10px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:3px 7px;border-radius:5px;border:1px solid;white-space:nowrap}
+.badge.valid{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.badge.likely_valid{background:#f0fdf4;border-color:#86efac;color:#166534}
+.badge.risky{background:var(--yellow-bg);border-color:var(--yellow-b);color:var(--yellow)}
+.badge.invalid{background:var(--red-bg);border-color:var(--red-b);color:var(--red)}
+.badge.consumer{background:var(--purple-bg);border-color:var(--purple-b);color:var(--purple)}
+.badge.unknown{background:var(--orange-bg);border-color:var(--orange-b);color:var(--orange)}
+.c-signals{padding-right:10px;display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start}
+.sig{font-family:var(--mono);font-size:9px;padding:2px 5px;border-radius:3px;border:1px solid;white-space:nowrap}
+.sig.ok{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.sig.no{background:var(--red-bg);border-color:var(--red-b);color:var(--red);opacity:.7}
+.sig.na{background:var(--bg2);border-color:var(--border);color:var(--ink3)}
+.c-detail{font-size:11px;color:var(--ink2);line-height:1.5}
+.provider-tag{font-family:var(--mono);font-size:9px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-mid);border-radius:3px;padding:1px 5px;margin-top:3px;display:inline-block}
+.smtp-code{font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--ink3);margin-left:4px}
+
+/* empty */
+.empty-state{padding:40px 20px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink3)}
+
+/* export */
+.export-row{display:flex;justify-content:flex-end;gap:8px;margin-top:13px;flex-wrap:wrap}
+.btn-ghost{display:inline-flex;align-items:center;gap:6px;background:var(--surface);color:var(--ink2);border:1px solid var(--border2);border-radius:8px;padding:7px 13px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .12s}
+.btn-ghost:hover{color:var(--ink);border-color:var(--ink);background:var(--bg2)}
+.btn-ghost.primary{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.btn-ghost.primary:hover{background:#dcfce7}
+
+/* tab panels */
+.tab-panel{display:none}.tab-panel.active{display:block}
+footer{text-align:center;margin-top:60px;font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.05em}
+
+@media(max-width:680px){
+  .tbl-head,.tbl-row{grid-template-columns:1fr 90px}
+  .tbl-head .th:nth-child(2),.tbl-head .th:nth-child(4),.c-dom,.c-detail{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="2" y="4" width="14" height="10" rx="2" stroke="white" stroke-width="1.5"/>
+          <path d="M2 6.5L9 11L16 6.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="logo-name">Mail<span>Check</span></span>
+    </div>
+    <div class="server-status" id="serverStatus">
+      <div class="status-dot checking" id="statusDot"></div>
+      <span class="status-text" id="statusText"><b>Backend:</b> connecting…</span>
+      <button class="btn-sm" onclick="checkServer()" style="margin-left:4px;padding:3px 8px;font-size:10px">retry</button>
+      <button class="btn-sm" onclick="openServerConfig()" style="margin-left:2px;padding:3px 8px;font-size:10px" title="Change server URL">⚙</button>
+    </div>
+  </div>
+
+  <!-- Server Config Modal — moved to body level in JS -->
+
+  <!-- Offline banner -->
+  <div class="offline-banner" id="offlineBanner">
+
+    <div class="offline-banner-head">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink:0"><circle cx="10" cy="10" r="8" stroke="#b91c1c" stroke-width="1.5"/><path d="M10 6v4M10 13v1" stroke="#b91c1c" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <div>
+        <div class="offline-banner-title">Backend is not connected — choose your setup method</div>
+        <div class="offline-banner-sub">Select how you want to run the backend and follow the steps</div>
+      </div>
+    </div>
+
+    <!-- Method toggle tabs -->
+    <div class="banner-tabs">
+      <button class="banner-tab active" id="tabLocal" onclick="switchBannerTab('local')">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 11h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        💻 Run Locally (Windows)
+      </button>
+      <button class="banner-tab" id="tabRender" onclick="switchBannerTab('render')">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v3M7 10v3M1 7h3M10 7h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>
+        ☁ Deploy on Render (Free)
+      </button>
+    </div>
+
+    <!-- LOCAL panel -->
+    <div class="banner-panel active" id="panelLocal">
+      <div class="setup-steps">
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">1</div><div class="step-title">Open PowerShell</div></div>
+          <div class="step-desc">Press <strong>Win + R</strong>, type <code style="font-family:var(--mono);font-size:11px;background:rgba(185,28,28,.1);padding:1px 4px;border-radius:3px">powershell</code>, press Enter.</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">2</div><div class="step-title">Navigate to the backend folder</div></div>
+          <div class="step-desc">Replace the path with where you saved the mailcheck-backend folder.</div>
+          <div class="step-cmd">
+            <code id="cmd1">cd "C:\Users\YourName\Downloads\mailcheck-backend"</code>
+            <button class="copy-btn" onclick="copyCmd('cmd1',this)">⎘ Copy</button>
+          </div>
+          <div class="step-note">💡 In Windows Explorer, Shift + right-click the folder → "Open PowerShell window here"</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">3</div><div class="step-title">Install Python packages (once only)</div></div>
+          <div class="step-cmd">
+            <code id="cmd2">pip install flask flask-cors dnspython gunicorn</code>
+            <button class="copy-btn" onclick="copyCmd('cmd2',this)">⎘ Copy</button>
+          </div>
+          <div class="step-note">💡 If pip not found: <code style="font-family:var(--mono);font-size:10px">python -m pip install flask flask-cors dnspython</code></div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">4</div><div class="step-title">Start the server</div></div>
+          <div class="step-desc">Keep this PowerShell window open while using MailCheck.</div>
+          <div class="step-cmd">
+            <code id="cmd3">python server.py</code>
+            <button class="copy-btn" onclick="copyCmd('cmd3',this)">⎘ Copy</button>
+          </div>
+          <div class="step-note">💡 You should see: Running on http://localhost:5000</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">5</div><div class="step-title">Connect the frontend</div></div>
+          <div class="step-desc">Click ⚙ (top-right) and set the URL to <code style="font-family:var(--mono);font-size:11px;background:rgba(185,28,28,.1);padding:1px 4px;border-radius:3px">http://localhost:5000</code>, then Save &amp; Connect.</div>
+          <div style="padding-left:32px;margin-top:8px">
+            <button onclick="checkServer()" style="display:inline-flex;align-items:center;gap:6px;background:var(--red);color:#fff;border:none;border-radius:7px;padding:8px 16px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">↺ Check connection now</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RENDER panel -->
+    <div class="banner-panel" id="panelRender">
+      <div class="setup-steps">
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">1</div><div class="step-title">Sign up at render.com</div></div>
+          <div class="step-desc">Go to <strong>render.com</strong> → Sign up free with GitHub. No credit card needed.</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">2</div><div class="step-title">Push these 3 files to a GitHub repo</div></div>
+          <div class="step-desc">Your repo needs exactly these files (download from this tool):</div>
+          <div style="padding-left:32px;margin-top:6px;display:flex;flex-direction:column;gap:4px">
+            <div style="font-family:var(--mono);font-size:11px;background:rgba(185,28,28,.08);border:1px solid rgba(185,28,28,.15);border-radius:5px;padding:5px 10px;color:#991b1b">📄 server.py</div>
+            <div style="font-family:var(--mono);font-size:11px;background:rgba(185,28,28,.08);border:1px solid rgba(185,28,28,.15);border-radius:5px;padding:5px 10px;color:#991b1b">📄 requirements.txt</div>
+            <div style="font-family:var(--mono);font-size:11px;background:rgba(185,28,28,.08);border:1px solid rgba(185,28,28,.15);border-radius:5px;padding:5px 10px;color:#991b1b">📄 render.yaml</div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">3</div><div class="step-title">Create a new Web Service on Render</div></div>
+          <div class="step-desc">On Render dashboard → <strong>New + → Web Service</strong> → Connect your GitHub repo → Render auto-detects render.yaml → click <strong>Deploy</strong>.</div>
+          <div class="step-note">💡 Build takes 2–3 minutes. Watch the Logs tab for "Your service is live"</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">4</div><div class="step-title">Copy your Render URL</div></div>
+          <div class="step-desc">After deploy, Render shows a URL like:</div>
+          <div class="step-cmd" style="margin-left:32px">
+            <code id="cmd_render">https://your-app-name.onrender.com</code>
+            <button class="copy-btn" onclick="copyCmd('cmd_render',this)">⎘ Copy</button>
+          </div>
+          <div class="step-note">💡 Free tier sleeps after 15 min. First request takes 30–60s to wake up — this is normal.</div>
+        </div>
+
+        <div class="setup-step">
+          <div class="step-header"><div class="step-num">5</div><div class="step-title">Connect the frontend</div></div>
+          <div class="step-desc">Click ⚙ (top-right) → paste your Render URL → <strong>Test connection</strong> (wait up to 60s) → <strong>Save &amp; Connect</strong>.</div>
+          <div style="padding-left:32px;margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="openServerConfig()" style="display:inline-flex;align-items:center;gap:6px;background:var(--red);color:#fff;border:none;border-radius:7px;padding:8px 16px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">⚙ Set Server URL</button>
+            <button onclick="checkServer()" style="display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--red);border:1.5px solid rgba(185,28,28,.4);border-radius:7px;padding:8px 16px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">↺ Check connection</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="eyebrow">Real SMTP Verification</div>
+    <h1>True deliverability<br>— not just syntax.</h1>
+    <p class="hero-sub">Every email goes through DNS MX lookup, then live SMTP handshake to confirm the mailbox actually exists.</p>
+  </div>
+
+  <!-- Method pills -->
+  <div class="method-bar" style="margin-bottom:24px">
+    <div class="method-pill syntax"><div class="dot"></div>1. Syntax check</div>
+    <div class="method-pill mx"><div class="dot"></div>2. DNS MX lookup</div>
+    <div class="method-pill smtp"><div class="dot"></div>3. SMTP RCPT TO probe</div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('manual')" id="tab-manual">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 6h6M4 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Manual Entry
+    </button>
+    <button class="tab" onclick="switchTab('upload')" id="tab-upload">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Bulk Upload
+      <span class="new-badge">XLS/CSV</span>
+    </button>
+  </div>
+
+  <!-- MANUAL -->
+  <div class="tab-panel active" id="panel-manual">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-label"><span class="dot"></span>Email Addresses</div>
+        <div class="card-hint">one per line</div>
+      </div>
+      <div class="card-body">
+        <textarea id="emailInput" placeholder="john.smith@acmecorp.com&#10;jane.doe@techpartners.io&#10;contact@harrislaw.net"></textarea>
+        <div class="alert" id="manualAlert"></div>
+      </div>
+      <div class="card-foot">
+        <div class="counters">
+          <div class="pill">Emails: <span class="pill-n" id="emailCount">0</span></div>
+          <div class="pill">Domains: <span class="pill-n" id="domainCount">0</span></div>
+        </div>
+        <button class="btn-run" id="manualRunBtn" onclick="runManual()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="white" stroke-width="1.5"/><path d="M5 7l2 2 3-3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Verify via SMTP
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="tab-panel" id="panel-upload">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-label"><span class="dot"></span>File Upload</div>
+        <div class="card-hint">All Excel formats + CSV</div>
+      </div>
+      <div class="card-body">
+        <div class="dropzone" id="dropzone"
+          onclick="document.getElementById('fileInput').click()"
+          ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <div class="drop-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M12 16V4M8 8l4-4 4 4" stroke="#1d4ed8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 18v1a1 1 0 001 1h14a1 1 0 001-1v-1" stroke="#9c9287" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="drop-title">Drop your spreadsheet here</div>
+          <div class="drop-sub">Email column auto-detected. No setup needed.</div>
+          <div class="fmt-pills">
+            <span class="fmt-pill xl">.xlsx</span><span class="fmt-pill xl">.xlsm</span>
+            <span class="fmt-pill xl">.xlsb</span><span class="fmt-pill xl">.xls</span>
+            <span class="fmt-pill xl">.ods</span><span class="fmt-pill csv">.csv</span>
+            <span class="fmt-pill csv">.tsv</span><span class="fmt-pill">.txt</span>
+          </div>
+          <button class="btn-browse" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Browse Files</button>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xlsb,.xls,.ods,.csv,.tsv,.txt" onchange="handleFileSelect(event)">
+
+        <div class="file-loaded" id="fileLoaded">
+          <div class="fl-icon">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="#15803d" stroke-width="1.5"/><path d="M7 7h6M7 10h6M7 13h4" stroke="#15803d" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="fl-info">
+            <div class="fl-name" id="flName">—</div>
+            <div class="fl-meta" id="flMeta">—</div>
+          </div>
+          <div style="flex-shrink:0">
+            <button class="btn-sm" onclick="clearFile()">✕ Clear</button>
+          </div>
+        </div>
+
+        <div class="mapper" id="colMapper">
+          <div class="mapper-title">Column Mapping</div>
+          <div class="map-grid">
+            <div class="map-lbl">Email column in your file</div>
+            <div class="map-arr">→</div>
+            <select id="colSelect" onchange="onColChange()"></select>
+          </div>
+          <div class="preview-strip" id="previewStrip"></div>
+        </div>
+
+        <div class="alert" id="uploadAlert"></div>
+      </div>
+      <div class="card-foot">
+        <div class="counters">
+          <div class="pill">Detected: <span class="pill-n" id="upCount">0</span> emails</div>
+          <div class="pill">Domains: <span class="pill-n" id="upDomains">0</span></div>
+        </div>
+        <button class="btn-run" id="uploadRunBtn" onclick="runUpload()" disabled>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="white" stroke-width="1.5"/><path d="M5 7l2 2 3-3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Verify All via SMTP
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-wrap" id="progWrap">
+    <div class="prog-head">
+      <span class="prog-lbl" id="progLbl">Sending to SMTP verifier…</span>
+      <span class="prog-pct" id="progPct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-sub" id="progSub">Connecting to backend…</div>
+    <div class="prog-stats" id="progStats"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSection" style="display:none">
+    <div class="results-topbar">
+      <div class="results-lbl">Multi-Signal Verification Results</div>
+      <div class="chips">
+        <div class="chip total"><div class="chip-dot"></div><span id="chipTotal">0</span> total</div>
+        <div class="chip valid"><div class="chip-dot"></div><span id="chipValid">0</span> valid</div>
+        <div class="chip likely"><div class="chip-dot"></div><span id="chipLikely">0</span> likely valid</div>
+        <div class="chip risky"><div class="chip-dot"></div><span id="chipRisky">0</span> risky</div>
+        <div class="chip invalid"><div class="chip-dot"></div><span id="chipInvalid">0</span> invalid</div>
+        <div class="chip consumer"><div class="chip-dot"></div><span id="chipConsumer">0</span> consumer</div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <button class="fbtn active" onclick="setFilter('all',this)">All</button>
+      <button class="fbtn" onclick="setFilter('valid',this)">✓ Valid</button>
+      <button class="fbtn" onclick="setFilter('likely_valid',this)">~ Likely Valid</button>
+      <button class="fbtn" onclick="setFilter('risky',this)">⚠ Risky</button>
+      <button class="fbtn" onclick="setFilter('invalid',this)">✗ Invalid</button>
+      <button class="fbtn" onclick="setFilter('consumer',this)">Consumer</button>
+      <div class="search-wrap">
+        <svg class="search-ico" width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 8l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <input class="search-inp" id="searchInp" placeholder="Search email…" oninput="renderTable()">
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <div class="th">Email Address</div>
+        <div class="th">Confidence</div>
+        <div class="th">Verdict</div>
+        <div class="th">DNS Signals</div>
+        <div class="th">Detail</div>
+      </div>
+      <div class="tbl-body" id="tblBody"></div>
+    </div>
+
+    <div class="export-row">
+      <button class="btn-ghost" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn-ghost" onclick="exportJSON()">↓ JSON</button>
+      <button class="btn-ghost primary" onclick="exportValid()">↓ Valid Emails Only</button>
+    </div>
+  </div>
+</div>
+
+<footer>MailCheck v3 · Multi-Signal Verification · Python Backend on localhost:5000</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── API URL detection ─────────────────────────────────────────────────────────
+(function() {
+  var saved;
+  try { saved = localStorage.getItem('mailcheck_api'); } catch(e) {}
+  window.API = (saved && saved.trim() && saved !== 'http://localhost:5000')
+    ? saved : 'http://localhost:5000';
+})();
+
+let allResults    = [];
+let currentFilter = 'all';
+let serverOnline  = false;
+let _uploadedEmails = [];
+let _uploadRows = null, _uploadColIdx = 0;
+
+// ── Server health check ───────────────────────────────────────────────────────
+async function checkServer() {
+  const dot    = document.getElementById('statusDot');
+  const txt    = document.getElementById('statusText');
+  const banner = document.getElementById('offlineBanner');
+  const url    = window.API;
+
+  const noConfig = !url || url === 'http://localhost:5000';
+  if (noConfig && !url) {
+    dot.className = 'status-dot offline';
+    txt.innerHTML = '<b>Backend:</b> not set — <a href="#" onclick="openServerConfig();return false;" style="color:#b91c1c;font-weight:700;text-decoration:underline;">click ⚙ to set Render URL</a>';
+    banner.classList.add('show');
+    return;
+  }
+
+  const isCloud = url && !url.includes('localhost') && !url.includes('127.0.0.1');
+  dot.className = 'status-dot checking';
+  txt.innerHTML = isCloud
+    ? '<b>Backend:</b> waking up… (Render free tier may take 30–60s)'
+    : '<b>Backend:</b> connecting…';
+
+  try {
+    const r = await fetch(url + '/health', {
+      method:'GET', mode:'cors', credentials:'omit',
+      signal: AbortSignal.timeout(65000)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.status === 'ok') {
+      dot.className = 'status-dot online';
+      txt.innerHTML = '<b>Backend:</b> <span style="color:#15803d">online ✓</span>';
+      serverOnline = true;
+      banner.classList.remove('show');
+    } else throw new Error('bad response');
+  } catch(e) {
+    dot.className = 'status-dot offline';
+    const msg = (e.name==='AbortError'||e.name==='TimeoutError')
+      ? 'timeout — Render is sleeping, retry in 60s'
+      : (e.message||'connection refused');
+    txt.innerHTML = `<b>Backend:</b> <span style="color:#b91c1c">✗ ${msg}</span> — <a href="#" onclick="openServerConfig();return false;" style="color:#b91c1c;text-decoration:underline;">change URL</a>`;
+    serverOnline = false;
+    banner.classList.add('show');
+    console.error('[MailCheck] checkServer failed:', e, '| URL:', url);
+  }
+}
+checkServer();
+setInterval(checkServer, 30000);
+
+// ── Banner tab switcher ───────────────────────────────────────────────────────
+function switchBannerTab(tab) {
+  document.getElementById('panelLocal').classList.toggle('active',  tab==='local');
+  document.getElementById('panelRender').classList.toggle('active', tab==='render');
+  document.getElementById('tabLocal').classList.toggle('active',    tab==='local');
+  document.getElementById('tabRender').classList.toggle('active',   tab==='render');
+}
+
+// ── Tab switcher (manual / upload) ───────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('tab-manual').classList.toggle('active', tab==='manual');
+  document.getElementById('tab-upload').classList.toggle('active', tab==='upload');
+  document.getElementById('panel-manual').classList.toggle('active', tab==='manual');
+  document.getElementById('panel-upload').classList.toggle('active', tab==='upload');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseEmails(text) {
+  return [...new Set(
+    text.split(/[\n\r,;\t ]+/)
+      .map(e => e.trim().toLowerCase().replace(/^["']|["']$/g,''))
+      .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e))
+  )];
+}
+function getDomain(e) { return e.split('@')[1] || ''; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Manual email counter ──────────────────────────────────────────────────────
+document.getElementById('emailInput').addEventListener('input', () => {
+  const emails = parseEmails(document.getElementById('emailInput').value);
+  document.getElementById('emailCount').textContent  = emails.length;
+  document.getElementById('domainCount').textContent = new Set(emails.map(getDomain)).size;
+});
+
+// ── Run manual verify ─────────────────────────────────────────────────────────
+function runManual() {
+  const emails = parseEmails(document.getElementById('emailInput').value);
+  const alertEl = document.getElementById('manualAlert');
+  if (!emails.length) { alertEl.textContent = 'No valid emails found.'; alertEl.style.display=''; return; }
+  alertEl.style.display = 'none';
+  startVerify(emails);
+}
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById('dropzone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('dropzone').classList.remove('drag-over'); }
+function onDrop(e)      { e.preventDefault(); document.getElementById('dropzone').classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); }
+function handleFileSelect(e) { handleFile(e.target.files[0]); }
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (['xlsx','xlsm','xlsb','xls','ods'].includes(ext)) {
+    readExcel(file);
+  } else if (['csv','tsv','txt'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      _uploadedEmails = parseEmails(ev.target.result);
+      _uploadRows = null;
+      showFileLoaded(file.name, `${_uploadedEmails.length} emails found`, null);
+      updateUploadCounts(_uploadedEmails);
+    };
+    reader.readAsText(file);
+  } else {
+    alert('Unsupported file. Use .xlsx, .csv, or .txt');
+  }
+}
+
+function readExcel(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if (!data.length) return;
+      const headers = data[0].map((h,i) => ({name: String(h||`Col ${i+1}`), idx:i}));
+      _uploadRows = data.slice(1);
+      showFileLoaded(file.name, `${_uploadRows.length} rows · ${headers.length} cols · "${wb.SheetNames[0]}"`, headers);
+    } catch(ex) { alert('Error reading file: ' + ex.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showFileLoaded(name, meta, headers) {
+  document.getElementById('flName').textContent = name;
+  document.getElementById('flMeta').textContent = meta;
+  document.getElementById('fileLoaded').style.display = '';
+  document.getElementById('dropzone').style.display   = 'none';
+
+  if (headers) {
+    const sel = document.getElementById('colSelect');
+    sel.innerHTML = headers.map(h => `<option value="${h.idx}">${esc(h.name)}</option>`).join('');
+    const emailIdx = headers.findIndex(h => /email/i.test(h.name));
+    if (emailIdx >= 0) sel.value = headers[emailIdx].idx;
+    document.getElementById('colMapper').style.display = '';
+    _uploadColIdx = parseInt(sel.value);
+    refreshUploadEmails();
+  } else {
+    document.getElementById('colMapper').style.display = 'none';
+    document.getElementById('uploadRunBtn').disabled = false;
+  }
+}
+
+function onColChange() {
+  _uploadColIdx = parseInt(document.getElementById('colSelect').value);
+  refreshUploadEmails();
+}
+
+function refreshUploadEmails() {
+  if (!_uploadRows) return;
+  const emails = _uploadRows
+    .map(r => (r[_uploadColIdx]||'').toString().trim().toLowerCase())
+    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e));
+  _uploadedEmails = [...new Set(emails)];
+  updateUploadCounts(_uploadedEmails);
+  document.getElementById('uploadRunBtn').disabled = _uploadedEmails.length === 0;
+  const preview = _uploadedEmails.slice(0,8);
+  document.getElementById('previewStrip').innerHTML =
+    preview.map(e=>`<span class="preview-tag">${esc(e)}</span>`).join('') +
+    (_uploadedEmails.length>8 ? `<span class="preview-tag" style="opacity:.5">+${_uploadedEmails.length-8} more</span>` : '');
+}
+
+function updateUploadCounts(emails) {
+  document.getElementById('upCount').textContent   = emails.length;
+  document.getElementById('upDomains').textContent = new Set(emails.map(getDomain)).size;
+}
+
+function clearFile() {
+  _uploadedEmails = [];
+  _uploadRows = null;
+  document.getElementById('fileLoaded').style.display = 'none';
+  document.getElementById('dropzone').style.display   = '';
+  document.getElementById('colMapper').style.display  = 'none';
+  document.getElementById('previewStrip').innerHTML   = '';
+  document.getElementById('upCount').textContent      = '0';
+  document.getElementById('upDomains').textContent    = '0';
+  document.getElementById('uploadRunBtn').disabled    = true;
+  document.getElementById('fileInput').value          = '';
+}
+
+function runUpload() {
+  const alertEl = document.getElementById('uploadAlert');
+  if (!_uploadedEmails.length) { alertEl.textContent='No emails found.'; alertEl.style.display=''; return; }
+  alertEl.style.display = 'none';
+  startVerify(_uploadedEmails);
+}
+
+// ── Core verify ───────────────────────────────────────────────────────────────
+async function startVerify(emails) {
+  if (!serverOnline) {
+    alert('Backend is not connected. Click ⚙ to set your Render URL, then wait for green dot.');
+    return;
+  }
+
+  allResults    = [];
+  currentFilter = 'all';
+
+  document.getElementById('resultsSection').style.display = '';
+  document.getElementById('progWrap').style.display       = '';
+  document.getElementById('tblBody').innerHTML            = '';
+
+  // Reset chips
+  ['chipTotal','chipValid','chipLikely','chipRisky','chipInvalid','chipConsumer']
+    .forEach(id => document.getElementById(id).textContent = '0');
+
+  const CHUNK   = 20;
+  const chunks  = [];
+  for (let i=0; i<emails.length; i+=CHUNK) chunks.push(emails.slice(i,i+CHUNK));
+
+  let done=0, valid=0, likely=0, risky=0, invalid=0, consumer=0;
+
+  for (let ci=0; ci<chunks.length; ci++) {
+    try {
+      const resp = await fetch(window.API + '/verify/bulk', {
+        method:'POST', mode:'cors', credentials:'omit',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({emails: chunks[ci]})
+      });
+      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+      const data = await resp.json();
+      data.results.forEach(r => {
+        allResults.push(r); done++;
+        if      (r.status==='valid')        valid++;
+        else if (r.status==='likely_valid') likely++;
+        else if (r.status==='risky')        risky++;
+        else if (r.status==='invalid')      invalid++;
+        else if (r.status==='consumer')     consumer++;
+      });
+    } catch(ex) {
+      console.error('Chunk error:', ex);
+      chunks[ci].forEach(email => {
+        allResults.push({email, status:'error', confidence:0, status_detail:ex.message,
+          provider:'', spf:{}, dmarc:{}, dkim:{}, smtp_code:null, catch_all:false});
+        done++;
+      });
+    }
+    updateProgress(done, emails.length);
+    updateChips(emails.length, valid, likely, risky, invalid, consumer);
+  }
+
+  document.getElementById('progWrap').style.display = 'none';
+  renderTable();
+}
+
+function updateProgress(done, total) {
+  const pct = total ? Math.round(done/total*100) : 0;
+  const bar  = document.querySelector('#progWrap .prog-bar');
+  const txt  = document.querySelector('#progWrap .prog-text');
+  if (bar) bar.style.width = pct + '%';
+  if (txt) txt.textContent = `Verifying… ${done} / ${total} (${pct}%)`;
+}
+
+function updateChips(total, valid, likely, risky, invalid, consumer) {
+  document.getElementById('chipTotal').textContent    = total;
+  document.getElementById('chipValid').textContent    = valid;
+  document.getElementById('chipLikely').textContent   = likely;
+  document.getElementById('chipRisky').textContent    = risky;
+  document.getElementById('chipInvalid').textContent  = invalid;
+  document.getElementById('chipConsumer').textContent = consumer;
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderTable();
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const q = (document.getElementById('searchInp').value || '').trim().toLowerCase();
+  let data = currentFilter === 'all' ? allResults : allResults.filter(r => r.status === currentFilter);
+  if (q) data = data.filter(r => r.email.includes(q));
+
+  const body = document.getElementById('tblBody');
+  if (!data.length) { body.innerHTML = '<div class="empty-state">No results match your filter.</div>'; return; }
+
+  const statusMap = {
+    valid:        {lbl:'✓ Valid',        cls:'badge-valid'},
+    likely_valid: {lbl:'~ Likely Valid', cls:'badge-likely'},
+    risky:        {lbl:'⚠ Risky',        cls:'badge-risky'},
+    invalid:      {lbl:'✗ Invalid',      cls:'badge-invalid'},
+    consumer:     {lbl:'◉ Consumer',     cls:'badge-consumer'},
+    error:        {lbl:'? Error',        cls:'badge-unknown'},
+    unknown:      {lbl:'? Unknown',      cls:'badge-unknown'},
+  };
+
+  body.innerHTML = data.map(r => {
+    const s   = statusMap[r.status] || statusMap.unknown;
+    const pct = r.confidence || 0;
+    const col = pct>=75?'#22c55e':pct>=50?'#eab308':pct>=25?'#f97316':'#ef4444';
+    const smtpBadge = r.smtp_code ? `<span class="smtp-code">${r.smtp_code}</span>` : '';
+    const sigs = [
+      r.spf?.found   ? `<span class="sig sig-spf">SPF</span>`         : '',
+      r.dmarc?.found ? `<span class="sig sig-dmarc">DMARC</span>`      : '',
+      r.dkim?.found  ? `<span class="sig sig-dkim">DKIM</span>`        : '',
+      r.mx_reachable ? `<span class="sig sig-mx">MX✓</span>`          : '',
+      r.catch_all    ? `<span class="sig sig-catchall">catch-all</span>` : '',
+      r.is_role_address ? `<span class="sig sig-role">role</span>`    : '',
+    ].join('');
+    const provTag = r.provider && r.provider!=='generic'
+      ? `<div class="provider-tag">${esc(r.provider.replace(/_/g,' '))}</div>` : '';
+
+    return `<div class="result-row">
+      <div class="c-email">${esc(r.email)}</div>
+      <div class="c-conf">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="conf-bar"><div class="conf-fill" style="width:${pct}%;background:${col}"></div></div>
+          <span class="conf-pct">${pct}%</span>
+        </div>
+      </div>
+      <div class="c-status"><span class="badge ${s.cls}">${s.lbl}</span>${smtpBadge}</div>
+      <div class="c-signals">${sigs}${provTag}</div>
+      <div class="c-detail">${esc(r.status_detail||'')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!allResults.length) return;
+  const rows = [['Email','Status','Confidence','Provider','SPF','DMARC','DKIM','Detail']];
+  allResults.forEach(r => rows.push([
+    r.email, r.status, r.confidence, r.provider||'',
+    r.spf?.found?'yes':'no', r.dmarc?.found?'yes':'no', r.dkim?.found?'yes':'no',
+    (r.status_detail||'').replace(/,/g,';')
+  ]));
+  dl('email-verification.csv', rows.map(r=>r.join(',')).join('\n'), 'text/csv');
+}
+function exportJSON() {
+  if (!allResults.length) return;
+  dl('email-verification.json', JSON.stringify(allResults,null,2), 'application/json');
+}
+function exportValid() {
+  const valid = allResults.filter(r=>r.status==='valid'||r.status==='likely_valid').map(r=>r.email);
+  if (!valid.length) return;
+  dl('valid-emails.txt', valid.join('\n'), 'text/plain');
+}
+function dl(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; a.click();
+}
+
+// ── Copy command helper ───────────────────────────────────────────────────────
+function copyCmd(id, btn) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent='⎘ Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+
+<!-- Server Config Modal -->
+<div id="serverModal" onclick="if(event.target===this)window.closeServerConfig()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #dedad0;border-radius:16px;padding:28px 32px;width:calc(100% - 40px);max-width:460px;box-shadow:0 12px 48px rgba(0,0,0,.22);font-family:sans-serif;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <b style="font-size:16px;color:#1a1714;">⚙ Backend Server URL</b>
+      <button onclick="window.closeServerConfig()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#9c9287;">✕</button>
+    </div>
+    <p style="font-size:13px;color:#5a5348;margin:0 0 14px;line-height:1.7;">
+      Paste your backend URL below.<br>
+      <b>Local:</b> <code style="background:#f4f2ed;padding:1px 5px;border-radius:3px;font-size:11px;">http://localhost:5000</code><br>
+      <b>Render:</b> <code style="background:#f4f2ed;padding:1px 5px;border-radius:3px;font-size:11px;">https://xxxx.onrender.com</code>
+    </p>
+    <input id="apiUrlInput" type="text" placeholder="https://mailcheck-backend.onrender.com"
+      style="display:block;width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:11px 14px;border:2px solid #1d4ed8;border-radius:9px;background:#fff;color:#1a1714;outline:none;margin-bottom:10px;">
+    <div id="modalTestResult" style="display:none;font-family:monospace;font-size:12px;padding:8px 12px;border-radius:7px;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="window.testServerUrl()" style="background:#f4f2ed;color:#1a1714;border:1px solid #c9c3b5;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;font-weight:600;">Test connection</button>
+      <button onclick="window.saveServerConfig()" style="background:#1a1714;color:#fff;border:none;border-radius:9px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;">Save &amp; Connect</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.openServerConfig = function() {
+  document.getElementById('apiUrlInput').value = window.API || '';
+  document.getElementById('modalTestResult').style.display = 'none';
+  document.getElementById('serverModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('apiUrlInput').select(), 60);
+};
+window.closeServerConfig = function() {
+  document.getElementById('serverModal').style.display = 'none';
+};
+window.testServerUrl = async function() {
+  const url = document.getElementById('apiUrlInput').value.trim().replace(/\/$/, '');
+  const el  = document.getElementById('modalTestResult');
+  el.style.display = 'block';
+  if (!url) { el.style.background='#fef2f2'; el.style.color='#b91c1c'; el.textContent='Enter a URL first.'; return; }
+  const isCloud = !url.includes('localhost');
+  el.style.background='#eff6ff'; el.style.color='#1d4ed8';
+  el.textContent = isCloud ? '⏳ Testing… Render may take 30–60s to wake up.' : '⏳ Testing localhost…';
+  try {
+    const r = await fetch(url+'/health',{method:'GET',mode:'cors',credentials:'omit',signal:AbortSignal.timeout(65000)});
+    if (r.ok) { el.style.background='#f0fdf4'; el.style.color='#15803d'; el.textContent='✓ Connected! Server is online.'; }
+    else      { el.style.background='#fffbeb'; el.style.color='#b45309'; el.textContent='⚠ HTTP '+r.status+' — check Render logs.'; }
+  } catch(e) {
+    el.style.background='#fef2f2'; el.style.color='#b91c1c';
+    el.textContent = (e.name==='AbortError'||e.name==='TimeoutError')
+      ? '✗ Timeout — wait 60s and try again.'
+      : '✗ Cannot connect: '+e.message;
+  }
+};
+window.saveServerConfig = function() {
+  const url = document.getElementById('apiUrlInput').value.trim().replace(/\/$/, '');
+  if (!url) return;
+  window.API = url;
+  try { localStorage.setItem('mailcheck_api', url); } catch(e) {}
+  window.closeServerConfig();
+  checkServer();
+};
+document.addEventListener('keydown', e => { if (e.key==='Escape') window.closeServerConfig(); });
+</script>
+</body>
+</html>
