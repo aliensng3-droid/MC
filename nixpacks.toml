@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python311", "gcc"]
+
+[phases.install]
+cmds = [
+  "pip install --no-cache-dir --upgrade pip",
+  "pip install --no-cache-dir flask dnspython gunicorn"
+]
+
+[start]
+cmd = "gunicorn server:app --bind 0.0.0.0:$PORT --timeout 180 --workers 1 --threads 4 --log-level info"
